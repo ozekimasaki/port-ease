@@ -1,0 +1,100 @@
+name: release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "X.Y.Z。空なら PortBan.csproj の Version"
+        required: false
+        type: string
+  push:
+    branches:
+      - main
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  test:
+    if: ${{ github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v') || contains(github.event.head_commit.message, '[release]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: テスト
+        run: dotnet test -c Release --nologo
+
+  package:
+    needs: test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: バージョンを決める
+        id: version
+        shell: pwsh
+        run: |
+          $version = ""
+          if ("${{ github.event_name }}" -eq "workflow_dispatch" -and "${{ inputs.version }}".Trim() -ne "") {
+            $version = "${{ inputs.version }}".Trim()
+          } elseif ("${{ github.ref_type }}" -eq "tag") {
+            $version = "${{ github.ref_name }}" -replace "^v", ""
+          } else {
+            $match = Select-String -Path PortBan.csproj -Pattern "<Version>([^<]+)</Version>" | Select-Object -First 1
+            if (-not $match) { throw "PortBan.csproj に Version がありません。" }
+            $version = $match.Matches[0].Groups[1].Value.Trim()
+          }
+          if ($version -notmatch "^\d+\.\d+\.\d+$") {
+            throw "バージョンは X.Y.Z です: $version"
+          }
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "value=$version" -Encoding utf8NoBOM
+
+      - name: Inno Setup を入れる
+        shell: pwsh
+        run: |
+          choco install innosetup --no-progress -y
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { throw "ISCC.exe が見つかりません。" }
+
+      - name: 単体 exe とインストーラーを作る
+        shell: pwsh
+        run: ./installer/build.ps1 -Version "${{ steps.version.outputs.value }}"
+
+      - name: GitHub Release を公開する
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $false
+          $notes = (Get-Content -Raw installer/notes.md).Replace("{version}", $env:VERSION)
+          Set-Content -Path dist/notes.md -Value $notes -Encoding utf8NoBOM
+          $tag = "v$env:VERSION"
+          $title = "ポート番 $env:VERSION"
+          $assets = @(
+            "dist/PortBan-Setup-$env:VERSION.exe",
+            "dist/PortBan-$env:VERSION.exe",
+            "dist/SHA256SUMS.txt"
+          )
+          gh release view $tag --json tagName
+          $exists = $LASTEXITCODE -eq 0
+          if ($exists) {
+            gh release upload $tag @assets --clobber
+            if ($LASTEXITCODE -ne 0) { throw "リリースへのアップロードに失敗しました。" }
+            gh release edit $tag --title $title --notes-file dist/notes.md
+            if ($LASTEXITCODE -ne 0) { throw "リリースノートの更新に失敗しました。" }
+          } else {
+            gh release create $tag @assets --title $title --notes-file dist/notes.md --target "${{ github.sha }}"
+            if ($LASTEXITCODE -ne 0) { throw "リリースの作成に失敗しました。" }
+          }

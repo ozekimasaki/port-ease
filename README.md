@@ -60,6 +60,25 @@ bin/Release/net8.0/win-x64/publish/PortBan.exe
 
 Windows では待ち受け一覧を IP Helper（`GetExtendedTcpTable` / `GetExtendedUdpTable`）で取り、失敗したときだけ `netstat -ano` に戻します。
 
+## リリース
+
+公開物は [GitHub Releases](https://github.com/ozekimasaki/port-ease/releases) に載ります。
+
+- `PortBan-Setup-X.Y.Z.exe` はインストーラーです。スタートメニューに追加し、設定からアンインストールできます。インストール先は `%LOCALAPPDATA%\Programs\PortBan` で、管理者権限は不要です。
+- `PortBan-X.Y.Z.exe` はインストールしない単体版です。追加のランタイムは不要です。
+
+次のどれかで自動的に作られます。
+
+- `v1.0.0` のようなタグを push する
+- `main` へのコミットメッセージに `[release]` を入れる。バージョンは `PortBan.csproj` の `Version` です
+- Actions の Release を手動実行し、`1.0.0` のようなバージョンを指定する
+
+Windows で手元から同じインストーラーを作るときは、[Inno Setup 6](https://jrsoftware.org/isdl.php) を入れてから次を実行します。
+
+```powershell
+.\installer\build.ps1 -Version 1.0.0
+```
+
 ## Linux で画面を確認する場合
 
 このリポジトリには、開発用に `/proc/net` から待ち受けポートを読む実装も入っています。プロセス終了も、権限があれば動きます。配布対象は Windows です。
