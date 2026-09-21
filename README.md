@@ -42,6 +42,8 @@ dotnet run
 dotnet test
 ```
 
+アイコンファイルはリポジトリには入っていません。ビルドのとき `tools/WriteIcon` が `Assets/portban.ico` を作ります。
+
 ## Windows 向けの単一 exe
 
 ランタイムのインストールは不要です。次のコマンドで `PortBan.exe` を作ります。

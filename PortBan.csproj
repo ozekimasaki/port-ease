@@ -25,9 +25,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Remove="PortBan.Tests/**" />
-    <None Remove="PortBan.Tests/**" />
-    <AvaloniaResource Remove="PortBan.Tests/**" />
+    <Compile Remove="PortBan.Tests/**;tools/**" />
+    <None Remove="PortBan.Tests/**;tools/**" />
+    <AvaloniaResource Remove="PortBan.Tests/**;tools/**" />
   </ItemGroup>
 
   <ItemGroup>
@@ -40,6 +40,15 @@
   </ItemGroup>
 
   <ItemGroup>
-    <AvaloniaResource Include="Assets\**" />
+    <AvaloniaResource Include="Assets\**" Exclude="Assets\portban.ico" />
   </ItemGroup>
+
+  <Target Name="RestorePortBanIcon" BeforeTargets="PrepareForBuild">
+    <Exec
+      Condition="!Exists('$(MSBuildProjectDirectory)/Assets/portban.ico')"
+      Command="dotnet run --project &quot;$(MSBuildProjectDirectory)/tools/WriteIcon/WriteIcon.csproj&quot; -c Release -- &quot;$(MSBuildProjectDirectory)/Assets/portban.ico&quot;" />
+    <ItemGroup>
+      <AvaloniaResource Include="$(MSBuildProjectDirectory)/Assets/portban.ico" Link="Assets\portban.ico" />
+    </ItemGroup>
+  </Target>
 </Project>
